@@ -3,6 +3,10 @@
 #include <stack>
 #include <ctime>
 #include <unordered_set>
+#include <algorithm>
+#include <array>
+#include <chrono>
+
 
 class Node{
 public:
@@ -30,7 +34,7 @@ private:
     int mainRoomsCount;
 
 public:
-    Map(const int& mapSize_, const int& roomCount_) noexcept : mapSize(mapSize_), roomCount(roomCount_) {
+    Map(const int& mapSize_, const int& roomCount_) : mapSize(mapSize_), roomCount(roomCount_) {
         if(pow(mapSize, 2) < roomCount){
             roomCount = pow(mapSize, 2);
         }
@@ -47,16 +51,15 @@ public:
         map = createFullMap();
         elevator = createElevator();
         mainRoomsCount = roomCount * 0.6;
-        if(roomCount > 0) generateMainPaths(elevator->left);
-        if(roomCount > 0) generateMainPaths(elevator->right);
-        if(roomCount > 0) generateMainPaths(elevator->down);
-        if(roomCount > 0) generateMainPaths(elevator->up);
-
+        if(roomCount > 0 && !elevator->left->isRoom) generateMainPaths(elevator->left);
+        if(roomCount > 0 && !elevator->right->isRoom) generateMainPaths(elevator->right);
+        if(roomCount > 0 && !elevator->down->isRoom) generateMainPaths(elevator->down);
+        if(roomCount > 0 && !elevator->up->isRoom) generateMainPaths(elevator->up);
         if(roomCount > 0) generateOtherRoom();
     }
 
 
-    void printMap() noexcept{
+    void printMap() const noexcept{
         if(roomCount != 0){
             std::cout << "Error: Room count is not empty" << std::endl;
             return;
@@ -79,23 +82,28 @@ public:
         }
     }
 
-    Node* getMap() noexcept{
+
+    Node* getMap() const noexcept{
         return map;
     }
 
-    Node* getElevatorRoom()noexcept{
+
+    Node* getElevatorRoom() const noexcept{
         return elevator;
     }
 
-    int getMapSize()noexcept{
+
+    int getMapSize() const noexcept{
         return mapSize;
     }
 
-    int getRoomCount()noexcept{
+
+    int getRoomCount() const noexcept{
         return roomCount;
     }
 
-    ~Map() noexcept {
+
+    ~Map() {
         Node* currentRow = map;
         while (currentRow) {
             Node* nextRow = currentRow->down;
@@ -111,7 +119,7 @@ public:
 
 
 protected:
-    Node* createElevator() noexcept{
+    Node* createElevator(){
         if(!map){
             std::cout << "Empty map!" <<  std::endl;
             return nullptr;
@@ -129,58 +137,47 @@ protected:
     }
 
 
-    void generateMainPaths(Node* side){
-        if(!side){
-            std::cout << ("Error: Side for main path is none") << std::endl;
-            return;
-        }
+    void generateMainPaths(Node* side) {
+        if (!side || side->isRoom) return;
 
         int partOfMainRoom = mainRoomsCount < 4 ? 1 : mainRoomsCount / 4;
-
         std::stack<Node*> nodesStack;
 
-        std::mt19937 gen = std::mt19937(static_cast<unsigned int>(std::time(0)));
-        std::uniform_int_distribution<> dis = std::uniform_int_distribution<>(1, 100);
+        std::mt19937 gen(static_cast<unsigned int>(std::time(0) + reinterpret_cast<uintptr_t>(side)));
+        std::uniform_int_distribution<> dis(1, 100);
 
-        while(partOfMainRoom){
-            if (side == nullptr) break;
-            side->isMain = true;
-            side->isRoom = true;
-            partOfMainRoom--;
-            roomCount--;
-            nodesStack.push(side);
+        nodesStack.push(side);
 
-            int roll = dis(gen);
+        while (partOfMainRoom > 0 && !nodesStack.empty()) {
+            side = nodesStack.top();
 
-            std::vector<Node*> neighbors;
+            if (!side->isRoom) {
+                side->isMain = true;
+                side->isRoom = true;
+                partOfMainRoom--;
+                roomCount--;
+            }
 
-            if (roll <= 25) neighbors = {side->up, side->down, side->left, side->right};
-            else if (roll <= 50) neighbors = {side->down, side->up, side->left, side->right};
-            else if (roll <= 75) neighbors = {side->left, side->down, side->up, side->right};
-            else neighbors = {side->right, side->down, side->up, side->left};
+            std::array<Node*, 4> neighbors = {side->up, side->down, side->left, side->right};
+            std::shuffle(neighbors.begin(), neighbors.end(), gen);
 
             bool moved = false;
             for (Node* next : neighbors) {
-                if (next && !next->isRoom && countFreeN(next) >= 3) {
-                    side = next;
+                if (next && !next->isRoom && countFreeN(next) >= 2) {
+                    nodesStack.push(next); // Шагаем вперед
                     moved = true;
                     break;
                 }
             }
 
             if (!moved) {
-                if (!nodesStack.empty()) {
-                    side = nodesStack.top();
-                    nodesStack.pop();
-                } else {
-                    break;
-                }
+                nodesStack.pop();
             }
-
         }
     }
 
-    int countFreeN(const Node* node) noexcept{
+
+    int countFreeN(const Node* node) const noexcept{
         int countN = 4;
         if(node->left && node->left->isRoom) countN--;
         if(node->right && node->right->isRoom) countN--;
@@ -188,6 +185,7 @@ protected:
         if(node->up && node->up->isRoom) countN--;
         return countN;
     }
+
 
     void generateOtherRoom() {
         if (roomCount <= 0) return;
@@ -241,7 +239,9 @@ protected:
             }
         }
     }
-    Node* createFullMap() noexcept{
+
+
+    Node* createFullMap(){
         if (mapSize <= 0) return nullptr;
 
         Node* firstInRow = nullptr;
@@ -277,7 +277,8 @@ protected:
 
 int main()
 {
-    Map mp(5, 24);
+    Map mp(10, 25);
     mp.startGenerate();
     mp.printMap();
+    return 0;
 }
