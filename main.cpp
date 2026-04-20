@@ -6,20 +6,19 @@
 #include <algorithm>
 #include <array>
 
-
 class Node{
 public:
     Node(Node* up_, Node* left_, Node* right_, Node* down_):
         up(up_), left(left_), right(right_), down(down_){}
 
-    bool isMain = false;
-    bool isRoom = false;
-    bool isElevator = false;
 
     Node* up = nullptr;
     Node* left = nullptr;
     Node* right = nullptr;
     Node* down = nullptr;
+    bool isMain = false;
+    bool isRoom = false;
+    bool isElevator = false;
 };
 
 
@@ -27,9 +26,9 @@ public:
 class Map{
 private:
     Node* map;
+    Node* elevator;
     int mapSize;
     int roomCount;
-    Node* elevator;
     int mainRoomsCount;
 
 public:
@@ -103,16 +102,11 @@ public:
 
 
     ~Map() {
-        Node* currentRow = map;
-        while (currentRow) {
-            Node* nextRow = currentRow->down;
-            Node* currentCol = currentRow;
-            while (currentCol) {
-                Node* nextCol = currentCol->right;
-                delete currentCol;
-                currentCol = nextCol;
+        if (map) {
+            for (int i = 0; i < mapSize * mapSize; ++i) {
+                map[i].~Node();
             }
-            currentRow = nextRow;
+            operator delete[](map);
         }
     }
 
@@ -239,43 +233,31 @@ protected:
     }
 
 
-    Node* createFullMap(){
+    Node* createFullMap() {
         if (mapSize <= 0) return nullptr;
 
-        Node* firstInRow = nullptr;
-        Node* prevRowNode = nullptr;
-        Node* leftNode = nullptr;
-        Node* topLeftCorner = nullptr;
+        Node* pool = static_cast<Node*>(operator new[](mapSize * mapSize * sizeof(Node)));
 
         for (int i = 0; i < mapSize; ++i) {
-            leftNode = nullptr;
             for (int j = 0; j < mapSize; ++j) {
-                Node* currentNode = new Node(nullptr, nullptr, nullptr, nullptr);
+                int idx = i * mapSize + j;
 
-                if (i == 0 && j == 0) topLeftCorner = currentNode;
-                if (leftNode) {
-                    leftNode->right = currentNode;
-                    currentNode->left = leftNode;
-                }
-                if (prevRowNode) {
-                    prevRowNode->down = currentNode;
-                    currentNode->up = prevRowNode;
-                    prevRowNode = prevRowNode->right;
-                }
-                leftNode = currentNode;
+                Node* up = (i > 0) ? &pool[(i - 1) * mapSize + j] : nullptr;
+                Node* down = (i < mapSize - 1) ? &pool[(i + 1) * mapSize + j] : nullptr;
+                Node* left = (j > 0) ? &pool[i * mapSize + (j - 1)] : nullptr;
+                Node* right = (j < mapSize - 1) ? &pool[i * mapSize + (j + 1)] : nullptr;
 
-                if (j == 0) firstInRow = currentNode;
+                new (&pool[idx]) Node(up, left, right, down);
             }
-            prevRowNode = firstInRow;
         }
-
-        return topLeftCorner;
+        map = pool;
+        return &pool[0];
     }
 };
 
 int main()
 {
-    Map mp(10, 25);
+    Map mp(5, 25);
     mp.startGenerate();
     mp.printMap();
     return 0;
